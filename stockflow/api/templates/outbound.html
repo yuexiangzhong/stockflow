@@ -1,0 +1,474 @@
+
+#(.venv) E:\进销存系统\stockflow>python -m uvicorn api.server:app --reload
+
+
+{% extends "base.html" %}
+{% block content %}
+<h2>借出</h2>
+
+<style>
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn-lg{padding:10px 18px;font-size:16px;border-radius:6px}
+  .btn-danger{background:#d33;color:#fff;border-color:#b22}
+  .btn-soft{background:#d1fae5;border:1px solid #10b981;color:#065f46}
+  .tag{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;margin-right:8px}
+  .stats{margin-left:auto;display:flex;gap:12px}
+  .stat{border:1px solid #ddd;border-radius:8px;padding:8px 12px;min-width:120px;text-align:center}
+  .stat .num{font-weight:700;font-size:18px}
+  .video-wrap{position:relative;display:inline-block;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+  #preview{display:block;width:420px;height:auto;background:#000}
+  .roi{position:absolute;border:2px solid #22c55e;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+  .roi::before,.roi::after{content:"";position:absolute;border:2px solid #22c55e;width:18px;height:18px}
+  .roi::before{left:-2px;top:-2px;border-right:none;border-bottom:none}
+  .roi::after{right:-2px;bottom:-2px;border-left:none;border-top:none}
+  .muted{color:#666}
+  table{margin-top:10px;border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ddd;padding:6px}
+  .actions button{padding:4px 8px}
+  .hint{font-size:12px;color:#666}
+  .pill{display:inline-block;padding:2px 6px;border:1px solid #ddd;border-radius:999px;margin-left:6px}
+  .thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;display:block}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .toolbar input[type="text"]{padding:6px 8px;width:260px}
+</style>
+
+<div class="row">
+  <button id="btnStart" class="btn btn-lg">开始借出</button>
+  <button id="btnFinish" class="btn btn-lg btn-danger" style="display:none">借出完成</button>
+  <!-- 新增：取消按钮（恢复初始状态） -->
+  <button id="btnCancel" class="btn btn-lg btn-soft" style="display:none">取消</button>
+
+  <div id="borrowInfo" style="display:none">
+    <span class="tag" id="tagCompany"  style="display:none;"></span>
+    <span class="tag" id="tagReceiver" style="display:none;"></span>
+    <span class="tag" id="tagHandler"  style="display:none;"></span>
+    <span class="tag" id="tagDiscount"></span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div>件数</div><div class="num" id="statCount">0</div></div>
+    <div class="stat"><div>总金额（折后）</div><div class="num" id="statAmount">¥0</div></div>
+  </div>
+</div>
+
+<div style="margin-top:14px" class="row">
+  <div class="video-wrap">
+    <video id="preview" playsinline></video>
+    <div id="roi" class="roi"></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div class="muted">
+      取景框内识别（摄像头需授权）。<span class="pill">将标签放入绿色方框内</span>
+    </div>
+    <div class="hint">提示：浏览器不支持原生识别时，会自动切换 jsQR 软件识别。</div>
+    <div>
+      <button id="btnRestart" class="btn" style="display:none">重启摄像头</button>
+    </div>
+    <!-- 手动输入 SKU -->
+    <div class="toolbar">
+      <input id="txtManual" type="text" placeholder="手动输入/粘贴 SKU 或完整扫码内容（回车添加）">
+      <button id="btnAddManual" class="btn">添加</button>
+    </div>
+  </div>
+</div>
+
+<table id="list">
+  <thead>
+    <tr>
+      <th style="width:120px">SKU</th>
+      <th>名称</th>
+      <th style="width:120px">品类</th>
+      <th style="width:90px">克重</th>
+      <th style="width:80px">缩略图</th>
+      <th style="width:120px">单价</th>
+      <th style="width:80px">操作</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- —— 信息录入弹窗 —— -->
+<dialog id="dlgInfo">
+  <form method="dialog" id="formInfo" style="min-width:420px">
+    <h3 style="margin-top:0">借出信息</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label>借入公司：<input type="text" id="inCompany" placeholder="选填"></label>
+      <label>接货负责人：<input type="text" id="receiver" placeholder="选填"></label>
+      <label>本公司经手人：<input type="text" id="handler" placeholder="选填"></label>
+      <label>VIP折扣（0.x）：<input type="number" id="discount" step="0.01" min="0" max="1" required value="0.80"></label>
+    </div>
+    <div class="muted" style="margin-top:6px">* 三项中至少填写一项；VIP折扣必填，格式 0.9 / 0.85 等。</div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" value="cancel">取消</button>
+      <button class="btn" id="btnInfoOk" value="ok">确定</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 本地回退识别库（离线可用） -->
+<script src="/static/js/jsQR.min.js"></script>
+
+<script>
+/* === 构造 PRODUCTS 字典，统一出缩略图 URL，并包含状态/借出人 === */
+const PRODUCTS = {
+  {% for p in products %}
+    {% set raw = (p.photo_url or p.photo or p.photo_path or '') %}
+    {% set norm = raw|replace('\\','/') %}
+    {% set base = (norm|length > 0 and (norm.split('/')[-1])) or '' %}
+    {% set photo_url = (base and ('/photos/' ~ base)) or '' %}
+    "{{ p.sku }}": {
+      "id": {{ p.id }},
+      "sku": "{{ p.sku }}",
+      "name": "{{ p.name|default('', true)|e }}",
+      "price": {{ p.sale_price|default(0, true) }},
+      "category": "{{ p.category|default('', true)|e }}",
+      "spec": "{{ p.spec|default('', true)|e }}",
+      "photo": "{{ photo_url|e }}",
+      "status": "{{ p.status|default('在库', true)|e }}",
+      "borrower": "{{ p.borrower|default('', true)|e }}"
+    }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
+const $ = s => document.querySelector(s);
+const fmt = n => "¥" + (Math.round((n||0))).toLocaleString();
+
+/* === 折扣记忆：localStorage === */
+const DISCOUNT_KEY = "sf:lastLoanDiscount";
+function getSavedDiscount() {
+  const v = parseFloat(localStorage.getItem(DISCOUNT_KEY));
+  return (v > 0 && v <= 1) ? v : 0.80;   // 默认 0.80
+}
+function saveDiscount(v) {
+  const n = parseFloat(v);
+  if (n > 0 && n <= 1) localStorage.setItem(DISCOUNT_KEY, n.toFixed(2));
+}
+
+let state = {
+  started: false,
+  discount: getSavedDiscount(),     // ← 用记忆值初始化
+  meta: { company:"", receiver:"", handler:"" },
+  items: [], // {id, sku, name, price, category, spec, photo}
+};
+
+/* === 顶部：开始借出 / 取消 / 完成 === */
+const btnStart = $("#btnStart"), btnFinish = $("#btnFinish"), btnCancel = $("#btnCancel");
+const btnRestart = $("#btnRestart");
+const dlg = $("#dlgInfo");
+
+btnStart.addEventListener("click", () => {
+  dlg.showModal();
+  $("#inCompany").value = state.meta.company || "";
+  $("#receiver").value  = state.meta.receiver || "";
+  $("#handler").value   = state.meta.handler || "";
+  $("#discount").value  = state.discount.toFixed(2);  // ← 带入记忆值
+});
+
+$("#btnInfoOk").addEventListener("click", async (ev) => {
+  ev.preventDefault();
+  const company = $("#inCompany").value.trim();
+  const receiver= $("#receiver").value.trim();
+  const handler = $("#handler").value.trim();
+  const discount = parseFloat($("#discount").value);
+
+  if (!company && !receiver && !handler) return alert("请至少填写：借入公司 / 接货负责人 / 本公司经手人 任一项。");
+  if (!(discount>0 && discount<=1)) return alert("VIP折扣必须是 0~1 之间的小数，比如 0.90");
+
+  state.started = true;
+  state.meta = {company, receiver, handler};
+  state.discount = discount;
+  saveDiscount(discount);                // ← 保存记忆
+
+  // 展示到顶部
+  $("#borrowInfo").style.display = "";
+  const show = (id, label, val) => { const el=$(id); if (val){ el.textContent = label + "：" + val; el.style.display="inline-block"; }else{ el.style.display="none"; } };
+  show("#tagCompany","借入公司", company);
+  show("#tagReceiver","接货负责人", receiver);
+  show("#tagHandler","经手人", handler);
+  $("#tagDiscount").textContent = "VIP折扣：" + discount.toFixed(2);
+
+  // 按钮切换
+  btnStart.style.display = "none";
+  btnFinish.style.display = "";
+  btnCancel.style.display = "";
+
+  dlg.close();
+
+  // 自动开摄像头
+  await startCam();
+});
+
+/* 取消：恢复初始状态 */
+btnCancel.addEventListener("click", () => {
+  resetUI();
+});
+
+/* ✅ 完成：提交 /api/loans/create，成功后复位并本地更新 PRODUCTS 状态，避免重复借出 */
+btnFinish.addEventListener("click", async () => {
+  if (state.items.length === 0) { alert("当前列表为空，无法生成借出单。"); return; }
+  const payload = {
+    company:  state.meta.company || "",
+    receiver: state.meta.receiver || "",
+    handler:  state.meta.handler || "",
+    discount: state.discount || 1,
+    items: state.items.map(x => ({ sku: x.sku }))
+  };
+  try {
+    stopCam(); // 先停摄像头
+    const res = await fetch("/api/loans/create", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(text || ("HTTP " + res.status));
+    }
+    // 成功
+    const data = text ? JSON.parse(text) : {};
+    const sum = state.items.reduce((a,b)=>a+(Number(b.price)||0),0) * (state.discount||1);
+    const msg = `借出单已生成：${data.loan_no || ""}（件数 ${state.items.length}，折后 ¥${Math.round(sum).toLocaleString()}）`;
+    // 本地把已借出的 SKU 标为“借出”，并写 borrower，避免不刷新继续扫成功
+    const borrowerTxt = [
+      state.meta.company && ("借入公司：" + state.meta.company),
+      state.meta.receiver && ("接货负责人：" + state.meta.receiver),
+      state.meta.handler  && ("本公司经手人：" + state.meta.handler)
+    ].filter(Boolean).join("，");
+    state.items.forEach(it => {
+      const p = PRODUCTS[it.sku];
+      if (p) { p.status = "借出"; p.borrower = borrowerTxt; }
+    });
+    resetUI();
+    alert(msg);
+  } catch (e) {
+    alert("生成借出单失败：" + e.message);
+  }
+});
+
+/* === 简短蜂鸣（更短 & 确保停止） === */
+const AC = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function blip({freq=1000, dur=70, type='sine', vol=0.18} = {}) {
+  try {
+    audioCtx = audioCtx || new AC();
+    audioCtx.resume?.();
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(vol, t0 + 0.01);
+    gain.gain.linearRampToValueAtTime(0.0001, t0 + dur / 1000.0);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur / 1000.0 + 0.02);
+    osc.onended = () => { try { osc.disconnect(); gain.disconnect(); } catch(e){} };
+  } catch(e) {}
+}
+const beepOk  = () => blip({freq: 1000, dur: 60, type: 'sine',   vol: 0.15});
+const beepErr = () => blip({freq:  300, dur: 90, type: 'square', vol: 0.18});
+
+/* === 摄像头扫码（仅识别取景框内） === */
+const video = $("#preview"), roi = $("#roi");
+let stream = null, rafId = null, engine = null, detector = null;
+
+function layoutROI() {
+  const vb = video.getBoundingClientRect();
+  const size = Math.min(vb.width, vb.height) * 0.6;
+  roi.style.width = size + "px";
+  roi.style.height = size + "px";
+  roi.style.left = (vb.left + (vb.width - size)/2 - vb.left) + "px";
+  roi.style.top  = (vb.top  + (vb.height- size)/2 - vb.top ) + "px";
+}
+window.addEventListener("resize", layoutROI);
+
+$("#btnRestart").addEventListener("click", async () => {
+  if (!state.started) return alert("请先点击“开始借出”并填写信息。");
+  await startCam();
+});
+
+async function startCam(){
+  try{
+    stopCam(); // 防重复
+    // 优先 BarcodeDetector，回退 jsQR
+    if ('BarcodeDetector' in window) {
+      try {
+        const fmts = await (window.BarcodeDetector.getSupportedFormats?.() || []);
+        if (!fmts || !fmts.length) throw new Error('no formats');
+        detector = new BarcodeDetector({formats:['qr_code']});
+        engine = 'barcode';
+      } catch { engine = (window.jsQR ? 'jsqr' : null); }
+    } else {
+      engine = (window.jsQR ? 'jsqr' : null);
+    }
+    if (!engine) {
+      alert("没有可用的扫码引擎（请更新浏览器，或确保已加载 /static/js/jsQR.min.js）。");
+      btnRestart.style.display = ""; return;
+    }
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream; await video.play();
+    btnRestart.style.display = "none";
+    layoutROI();
+    tick();
+    stream.getVideoTracks().forEach(t => {
+      t.addEventListener('ended', () => { if (state.started) btnRestart.style.display = ""; });
+    });
+  }catch(e){
+    console.error(e);
+    alert("无法启动摄像头：" + e.message);
+    btnRestart.style.display = "";
+  }
+}
+function stopCam(){
+  if (rafId) cancelAnimationFrame(rafId), rafId=null;
+  if (video.srcObject) { video.pause(); video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; }
+  if (state.started) btnRestart.style.display = ""; else btnRestart.style.display = "none";
+}
+document.addEventListener("visibilitychange", ()=>{
+  if (document.hidden) stopCam();
+  else if (state.started && !video.srcObject) btnRestart.style.display = "";
+});
+
+const off = document.createElement('canvas'), ctx = off.getContext('2d');
+
+async function tick(){
+  if (!video.videoWidth) { rafId = requestAnimationFrame(tick); return; }
+
+  // ROI 对应像素窗口
+  const vb = video.getBoundingClientRect();
+  const rx = roi.getBoundingClientRect();
+  const sx = (rx.left - vb.left) / vb.width  * video.videoWidth;
+  const sy = (rx.top  - vb.top ) / vb.height * video.videoHeight;
+  const sw = rx.width  / vb.width  * video.videoWidth;
+  const sh = rx.height / vb.height * video.videoHeight;
+
+  off.width = sw; off.height = sh;
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  try{
+    if (engine === 'barcode') {
+      const barcodes = await detector.detect(off);
+      if (barcodes && barcodes.length) handleScan((barcodes[0].rawValue || "").trim());
+    } else if (engine === 'jsqr') {
+      const img = ctx.getImageData(0,0,sw,sh);
+      const res = window.jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
+      if (res && res.data) handleScan((res.data||"").trim());
+    }
+  }catch(e){ /* 忽略 */ }
+
+  rafId = requestAnimationFrame(tick);
+}
+
+/* === 解析扫描内容：SF1:COMP:SKU:CHK 或 SKU 本身 === */
+function parseSKU(s){
+  if (!s) return null;
+  if (s.startsWith("SF1:")){
+    const parts = s.split(":");
+    if (parts.length >= 4) return parts[2]; // 取 SKU
+  }
+  const m = s.match(/^[A-Z0-9]+-\d{4}-\d{4}$/i);
+  return m ? m[0].toUpperCase() : null;
+}
+
+/* === 列表与统计 === */
+const tbody = document.querySelector("#list tbody");
+
+function addItemBySKU(sku){
+  const key = sku.toUpperCase();
+  if (state.items.some(x=>x.sku===key)) { beepErr(); return alert("重复扫描：该商品已在列表\n" + key); }
+  const p = PRODUCTS[key];
+  if (!p) { beepErr(); return alert("该二维码对应的商品不在库或未建立：\n" + key); }
+
+  // ⛔ 非“在库”禁止借出（前端拦截）
+  const st = (p.status || "在库").trim();
+  if (st !== "在库") {
+    beepErr();
+    const who = p.borrower ? `（${p.borrower}）` : "";
+    return alert(`该商品当前状态为【${st}】，不可借出。\n${who}`);
+  }
+
+  state.items.push({
+    id:p.id, sku:p.sku, name:p.name,
+    price: Number(p.price)||0,
+    category: p.category || "",
+    spec: p.spec || "",
+    photo: p.photo || ""
+  });
+  renderList(); updateStats(); beepOk();
+}
+
+function removeAt(idx){ state.items.splice(idx,1); renderList(); updateStats(); }
+
+function renderList(){
+  tbody.innerHTML = "";
+  state.items.forEach((it, i)=>{
+    const wt = it.spec ? (it.spec + (/\bg$/.test(it.spec)? "" : " g")) : "";
+    const img = it.photo ? `<img class="thumb" src="${it.photo}" alt="" onerror="this.style.display='none'">` : "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${it.sku}</td>
+      <td>${it.name||""}</td>
+      <td>${it.category||""}</td>
+      <td>${wt}</td>
+      <td>${img}</td>
+      <td>¥${(Number(it.price)||0).toLocaleString()}</td>
+      <td class="actions"><button class="btn" data-i="${i}">删除</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("button[data-i]").forEach(btn=>{
+    btn.addEventListener("click", e=> removeAt(Number(btn.dataset.i)));
+  });
+}
+
+function totalAmount(){ return state.items.reduce((a,b)=> a + (Number(b.price)||0), 0) * (state.discount || 1); }
+function updateStats(){
+  $("#statCount").textContent = state.items.length;
+  $("#statAmount").textContent = fmt(totalAmount());
+}
+
+/* === 扫码与手动输入 === */
+let lastScanAt = 0, lastVal = "";
+function handleScan(raw){
+  if (!state.started) return;
+  const now = Date.now();
+  if (raw === lastVal && now - lastScanAt < 1200) return; // 防抖
+  lastVal = raw; lastScanAt = now;
+  const sku = parseSKU(raw) || raw.trim().toUpperCase();
+  if (!sku) { beepErr(); return; }
+  addItemBySKU(sku);
+}
+
+/* 手动输入栏 */
+const txtManual = $("#txtManual"), btnAddManual = $("#btnAddManual");
+btnAddManual.addEventListener("click", () => {
+  const raw = (txtManual.value||"").trim();
+  if (!raw) return;
+  handleScan(raw);
+  txtManual.value = "";
+  txtManual.focus();
+});
+txtManual.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); btnAddManual.click(); } });
+
+/* === 复位（取消/完成后会调用） === */
+function resetUI(){
+  stopCam();
+  state.started = false;
+  state.meta = {company:"", receiver:"", handler:""};
+  state.discount = getSavedDiscount();  // ← 用记忆值复位
+  state.items = [];
+  lastScanAt = 0; lastVal = "";
+  $("#borrowInfo").style.display = "none";
+  btnStart.style.display = "";
+  btnFinish.style.display = "none";
+  btnCancel.style.display = "none";
+  btnRestart.style.display = "none";
+  renderList(); updateStats();
+  txtManual.value = "";
+}
+
+/* 初始统计 */
+renderList(); updateStats();
+</script>
+{% endblock %}

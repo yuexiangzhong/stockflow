@@ -1,0 +1,17 @@
+type,sku,name,user,sale_price,cost_price,weight_g,photo
+product_add,J003,钻石2.35ct 红宝石2.2ct,admin,130000,100500,12.4,data\photos\J003_20251002_000234.png
+product_add,J004,18K 钻石2.32ct 红宝石2.78ct,admin,350000,230000,3.2,data\photos\J004_20251002_004947.png
+product_update,1,J001,不详,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,不详,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,1,admin,250000,200000,5.32,2025-10-01,1,
+product_update,2,J002,钻石5ct,admin,250000,100000,12,2025-10-01,1,B拍卖会
+product_update,2,J002,钻石5ct,admin,250000,100000,12,2025-10-01,1,B拍卖会
+product_update,1,J001,1,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,2,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,2,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,2,admin,250000,200000,5.32,2025-10-01,1,
+product_update,3,J003,钻石2.35ct 红宝石2.2ct,admin,130000,100500,12.4,2025-09-16,0,中国X商家收购
+product_update,1,J001,,admin,250000,200000,5.32,2025-10-01,1,
+product_update,1,J001,,admin,250000,200000,5.32,2025-10-01,1,
+product_delete,1,J001,,admin
+product_add,J001,,admin,25000,10000,,2025-10-02,1,B拍卖会,在库,data\photos\J001_20251002_225634.png

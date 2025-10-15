@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>入库</h2>
+
+<style>
+  .folder-list{margin:10px 0;border:1px solid #e5e7eb;border-radius:8px}
+  .folder-list table{width:100%;border-collapse:collapse}
+  .folder-list th,.folder-list td{border-bottom:1px solid #eee;padding:8px}
+  .folder-list tr:last-child td{border-bottom:0}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #ddd;background:#f9fafb}
+  .badge.red{background:#fee2e2;border-color:#fecaca}
+  .right{float:right}
+  .muted{color:#666}
+</style>
+
+<!-- 借出单区：像“文件夹”列表 -->
+<div class="folder-list">
+  <div style="padding:10px 12px;border-bottom:1px solid #eee;font-weight:700">借出单</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:140px">单号</th>
+        <th>借入公司 / 接货负责人 / 经手人</th>
+        <th style="width:80px">件数</th>
+        <th style="width:120px">折后金额</th>
+        <th style="width:100px">状态</th>
+        <th style="width:160px">创建时间</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in loans %}
+      <tr>
+        <td><a href="/loans/{{ o.id }}">{{ o.loan_no }}</a></td>
+        <td class="muted">{{ o.company or '' }}{% if o.receiver %} / {{ o.receiver }}{% endif %}{% if o.handler %} / {{ o.handler }}{% endif %}</td>
+        <td>{{ o.total_qty }}</td>
+        <td>¥{{ o.amount_fmt }}</td>
+        <td>
+          {% if o.status == '借出中' %}
+            <span class="badge red">借出中</span>
+          {% else %}
+            <span class="badge">已归还</span>
+          {% endif %}
+        </td>
+        <td>{{ o.created_at }}</td>
+      </tr>
+      {% endfor %}
+      {% if loans|length == 0 %}
+      <tr><td colspan="6" class="muted">暂无借出单</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 原入库表单（保留你的逻辑） -->
+<form method="post" action="/inbound" style="margin-top:16px">
+  <label>商品：
+    <select name="product_id" required>
+      {% for p in products %}<option value="{{ p.id }}">{{ p.sku }} - {{ p.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>仓库：
+    <select name="wh_id" required>
+      {% for w in warehouses %}<option value="{{ w.id }}">{{ w.code }} - {{ w.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>数量：<input name="qty" type="number" step="0.01" required></label>
+  <button class="btn" type="submit">入库</button>
+</form>
+{% endblock %}

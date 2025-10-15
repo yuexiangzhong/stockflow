@@ -1,0 +1,3 @@
+type,sku,name,user,sale_price,cost_price,weight_g,login_date,tax_included,remark,status,qr_payload,photo
+product_add,DTGJZS1028-2510-0004,珍珠11-13mm SV 钻石3.2ct 红宝石4.5ct 蓝宝石7.8ct,admin,2500000,2000000,32,2025-10-06,1,,在库,SF1:DTGJZS1028:DTGJZS1028-2510-0004:FOGZCG,data\photos\DTGJZS1028-2510-0004_20251006_002444.jpg
+product_add,DTGJZS1028-2510-0005,D2.35 R1.25 PT900,admin,500000,350000,3.5,2025-10-06,1,A拍卖会,在库,SF1:DTGJZS1028:DTGJZS1028-2510-0005:MBVZXC,data\photos\DTGJZS1028-2510-0005_20251006_013151.png

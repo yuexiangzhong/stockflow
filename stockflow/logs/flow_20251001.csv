@@ -1,0 +1,9 @@
+type,code,name,user
+warehouse_add,MAIN,主仓,admin
+product_add,J001,18K戒指,admin
+product_add,J002,pt900,admin
+warehouse_add,MAIN,主仓,admin
+product_add,J001,18K戒指 钻石3.25,admin,20000,12000,12
+product_add,J001,钻石2.35ct 红宝石2.2ct,admin,50000,2000,5.32,data\photos\J001_20251001_233644.png
+product_add,J001,钻石2.35ct 红宝石2.2ct,admin,25000,20000,5.32
+product_add,J002,钻石5ct,admin,25000,10000,,data\photos\J002_20251001_235851.jpg

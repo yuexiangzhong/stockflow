@@ -1,0 +1,4 @@
+type,sku,name,user,sale_price,cost_price,weight_g,login_date,tax_included,remark,status,qr_payload,photo
+product_add,DTGJZS1028-2510-0001,钻石2.35ct 红宝石2.2ct,admin,13000,10000,5.32,2025-10-04,1,B拍卖会,在库,SF1:DTGJZS1028:DTGJZS1028-2510-0001:LGFC5I,data\photos\DTGJZS1028-2510-0001_20251004_231724.png
+product_update,1,DTGJZS1028-2510-0001,钻石2.35ct 红宝石2.2ct,admin,13000,10000,5.32,2025-10-04,1,B拍卖会
+product_delete,1,DTGJZS1028-2510-0001,钻石2.35ct 红宝石2.2ct,admin

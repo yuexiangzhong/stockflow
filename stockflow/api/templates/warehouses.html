@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>仓库列表</h3>
+<table>
+  <tr><th>ID</th><th>编码</th><th>名称</th><th>启用</th></tr>
+  {% for r in rows %}
+  <tr><td>{{ r.id }}</td><td>{{ r.code }}</td><td>{{ r.name }}</td><td>{{ r.enabled }}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>新增仓库</h3>
+<form method="post" action="/warehouses">
+  <input name="code" placeholder="编码" required>
+  <input name="name" placeholder="名称" required>
+  <button class="btn" type="submit">新增</button>
+</form>
+{% endblock %}

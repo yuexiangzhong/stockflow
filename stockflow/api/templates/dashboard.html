@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>欢迎，{{ user.username }}</h2>
+<p>角色：{{ ", ".join(user.roles) }}</p>
+<ul>
+  <li><a href="/products">商品管理</a></li>
+  <li><a href="/warehouses">仓库管理</a></li>
+  <li><a href="/inbound">归还入库</a></li>
+  <li><a href="/outbound">借出离库</a></li>
+  <!-- 👉 新增：标签打印入口 -->
+  <li><a href="/labels">标签打印</a></li>
+</ul>
+{% endblock %}

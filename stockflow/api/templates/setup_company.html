@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>首次使用：设置公司信息</h3>
+
+{% if error %}
+  <p class="error">⚠️ {{ error }}</p>
+{% endif %}
+
+<p style="color:#555">请输入公司名称，并确认系统生成的公司缩写（可手动微调，1~6 位字母/数字）。保存后公司代码固定不变。</p>
+
+<form method="post" action="/setup/company" style="max-width:520px">
+  <div style="margin:8px 0">
+    <div><label for="company_name">公司名称</label></div>
+    <input id="company_name" name="company_name" placeholder="例如：汉吉珠宝有限公司" required>
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="abbrev_input">公司缩写（可手动修改，1~6 位字母/数字）</label></div>
+    <input id="abbrev_input" name="abbrev_input" placeholder="例如：HJZB" maxlength="6"
+           oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+    <div style="font-size:12px;color:#666;margin-top:4px">
+      保存时系统会在缩写后追加 <b>4位随机数字</b> 作为公司代码，例如 <code>HJZB5829</code>。
+    </div>
+  </div>
+
+  <button class="btn" type="submit">保存并开始使用</button>
+</form>
+{% endblock %}

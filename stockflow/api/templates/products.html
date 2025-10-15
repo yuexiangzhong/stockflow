@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>新增商品</h3>
+
+{% if error %}
+  <p class="error">⚠️ {{ error }}</p>
+{% endif %}
+
+<style>
+  .legend { font-size: 13px; margin: 8px 0 12px; }
+  .legend .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 6px 0 12px; vertical-align:middle; }
+  .dot.red { background:#EF5350; }
+  .dot.gray { background:#9E9E9E; }
+  .dot.white { background:#FFFFFF; border:1px solid #CCC; }
+</style>
+
+<script>
+  function toHalfWidthNum(str){
+    if(!str) return "";
+    const fw = "０１２３４５６７８９，．、";
+    const hw = "0123456789,..";
+    const map = {}; for(let i=0;i<fw.length;i++){ map[fw[i]] = hw[i] || ""; }
+    return str.split("").map(ch => (map[ch] ?? ch)).join("");
+  }
+  function keepDigits(e){
+    const v = toHalfWidthNum(e.value);
+    e.value = v.replace(/[^\d]/g,'');
+  }
+  function keepNumberWithDot(e){
+    let v = toHalfWidthNum(e.value);
+    v = v.replace(/[gG]/g,'');
+    v = v.replace(/[^0-9.]/g,'');
+    const first = v.indexOf('.');
+    if (first !== -1) v = v.slice(0, first + 1) + v.slice(first + 1).replace(/\./g, '');
+    e.value = v;
+  }
+  function openDlg(id){ document.getElementById(id).showModal(); }
+  function closeDlg(id){ document.getElementById(id).close(); }
+
+  // 恢复滚动位置 + 新增表单默认日期
+  document.addEventListener('DOMContentLoaded', function(){
+    const y = sessionStorage.getItem('products_scroll_y');
+    if (y) { window.scrollTo(0, parseInt(y)); }
+    const d = document.getElementById('login_date');
+    if (d && !d.value) {
+      const now = new Date();
+      const mm = String(now.getMonth()+1).padStart(2,'0');
+      const dd = String(now.getDate()).padStart(2,'0');
+      d.value = `${now.getFullYear()}-${mm}-${dd}`;
+    }
+  });
+  window.addEventListener('beforeunload', function(){
+    sessionStorage.setItem('products_scroll_y', String(window.scrollY));
+  });
+</script>
+
+<form method="post" action="/products" enctype="multipart/form-data" style="margin-bottom:18px">
+  <div style="margin:8px 0">
+    <div><label for="sku">商品编码（SKU）</label></div>
+    <input id="sku" name="sku" value="保存后自动生成" readonly style="background:#f5f5f5;color:#666">
+    <div style="font-size:12px;color:#888">提交保存后系统自动分配 SKU 并生成二维码</div>
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label>品类（可选）</label></div>
+    <select id="category" name="category">
+      <option value="">（不选择）</option>
+      <option>戒指</option><option>项链</option><option>手链</option>
+      <option>耳饰</option><option>吊坠</option><option>胸针</option>
+    </select>
+    <input name="category_custom" placeholder="或手动输入品类（可留空）" style="margin-left:8px">
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="detail">商品详细信息（可留空）</label></div>
+    <input id="detail" name="detail" placeholder="如 18K / 珍珠 / 尺寸等，可留空">
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="weight">克重（可为空，可小数）</label></div>
+    <input id="weight" name="weight" placeholder="如 12 或 12.5" oninput="keepNumberWithDot(this)">
+    <div style="font-size:12px;color:#666;margin-top:4px">单位默认为 g（无需输入 g）。</div>
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="cost">成本价（日元，选填）</label></div>
+    <input id="cost" name="cost" placeholder="如 120,000 或 １２３４５" oninput="keepDigits(this)">
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="price">售价（日元，必须为整数）</label></div>
+    <input id="price" name="price" placeholder="如 168,000 或 １２３４５６" required oninput="keepDigits(this)">
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="login_date">商品登录日期（默认今日）</label></div>
+    <input id="login_date" name="login_date" type="date">
+  </div>
+
+  <!-- 含税/无税（必选） -->
+  <div style="margin:8px 0">
+    <div><label>进货税别（必选）</label></div>
+    <label style="margin-right:16px;">
+      <input type="radio" name="tax_included" value="1" checked> 含税进货
+    </label>
+    <label>
+      <input type="radio" name="tax_included" value="0"> 无税进货
+    </label>
+  </div>
+
+  <!-- 备注 -->
+  <div style="margin:8px 0">
+    <div><label for="remark">备注（公司内部记录，可留空）</label></div>
+    <input id="remark" name="remark" placeholder="例如来源、成色、特殊说明等">
+  </div>
+
+  <div style="margin:8px 0">
+    <div><label for="photo">照片（可选）</label></div>
+    <input id="photo" name="photo" type="file" accept="image/*">
+  </div>
+
+  <button class="btn" type="submit">保存商品</button>
+</form>
+
+<div class="legend">
+  <span class="dot red"></span> 借出
+  <span class="dot gray"></span> 已出售
+  <span class="dot white"></span> 在库
+</div>
+
+<h3>商品列表</h3>
+<table>
+  <tr>
+    <th>ID</th><th>SKU</th><th>二维码</th><th>品类</th><th>商品详细信息</th><th>克重</th>
+    <th>成本</th><th>售价</th><th>登录日期</th><th>状态</th><th>含税买入</th><th>备注</th><th>图片</th><th>操作</th>
+  </tr>
+  {% for r in rows %}
+  <tr id="row-{{ r.id }}" style="background: {{ r.row_bg }}">
+    <td>{{ r.id }}</td>
+    <td>{{ r.sku }}</td>
+    <td>
+      {% if r.qr_url %}
+        <a href="{{ r.qr_url }}" target="_blank" title="点击查看大图">
+          <img src="{{ r.qr_url }}" alt="qr" style="height:60px;object-fit:contain">
+        </a>
+      {% endif %}
+    </td>
+    <td>{{ r.category or '' }}</td>
+    <!-- 这里改成空就空 -->
+    <td>{{ r.detail or '' }}</td>
+    <td>{{ r.weight_fmt }}</td>
+    <td>{{ r.cost_fmt }}</td>
+    <td>{{ r.price_fmt }}</td>
+    <td>{{ r.login_date or '' }}</td>
+    <td>
+      {% if r.status == '借出' and r.borrower %}
+        借出（{{ r.borrower }}）
+      {% else %}
+        {{ r.status or '在库' }}
+      {% endif %}
+    </td>
+    <td style="text-align:center">{{ r.tax_mark }}</td>
+    <td title="{{ r.remark }}">{{ (r.remark[:16] ~ '…') if r.remark and r.remark|length>16 else (r.remark or '') }}</td>
+    <td>
+      {% if r.photo_url %}
+        <a href="{{ r.photo_url }}" target="_blank">
+          <img src="{{ r.photo_url }}" alt="photo" style="height:60px;object-fit:cover">
+        </a>
+      {% else %}{% endif %}
+    </td>
+    <td>
+      <button class="btn" type="button" onclick="openDlg('dlg-{{ r.id }}')">编辑</button>
+    </td>
+  </tr>
+
+  <!-- 编辑弹窗 -->
+  <dialog id="dlg-{{ r.id }}" style="max-width:560px">
+    <form method="post" action="/products/{{ r.id }}/update" enctype="multipart/form-data">
+      <h3>编辑商品 #{{ r.id }}</h3>
+      <div style="margin:8px 0">
+        <div><label>商品编码（SKU）</label></div>
+        <input name="sku" value="{{ r.sku }}" readonly style="background:#f5f5f5;color:#666">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>品类（可选）</label></div>
+        <select name="category">
+          <option value="">（不选择）</option>
+          <option {% if r.category_select=='戒指' %}selected{% endif %}>戒指</option>
+          <option {% if r.category_select=='项链' %}selected{% endif %}>项链</option>
+          <option {% if r.category_select=='手链' %}selected{% endif %}>手链</option>
+          <option {% if r.category_select=='耳饰' %}selected{% endif %}>耳饰</option>
+          <option {% if r.category_select=='吊坠' %}selected{% endif %}>吊坠</option>
+          <option {% if r.category_select=='胸针' %}selected{% endif %}>胸针</option>
+        </select>
+        <input name="category_custom" value="{{ r.category_custom }}" placeholder="或手动输入品类" style="margin-left:8px">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>商品详细信息（可留空）</label></div>
+        <input name="detail" value="{{ r.detail }}">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>克重（可为空，可小数）</label></div>
+        <input name="weight" value="{{ r.spec or '' }}" oninput="keepNumberWithDot(this)">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>成本价（日元，选填）</label></div>
+        <input name="cost" value="{{ r.cost_raw }}" oninput="keepDigits(this)">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>售价（日元，必须为整数）</label></div>
+        <input name="price" value="{{ r.price_raw }}" required oninput="keepDigits(this)">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>商品登录日期</label></div>
+        <input name="login_date" type="date" value="{{ r.login_date }}">
+      </div>
+
+      <!-- 含税/无税（必选） -->
+      <div style="margin:8px 0">
+        <div><label>进货税别（必选）</label></div>
+        <label style="margin-right:16px;">
+          <input type="radio" name="tax_included" value="1" {% if r.tax_included==1 %}checked{% endif %}> 含税进货
+        </label>
+        <label>
+          <input type="radio" name="tax_included" value="0" {% if r.tax_included==0 %}checked{% endif %}> 无税进货
+        </label>
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>备注（公司内部记录）</label></div>
+        <input name="remark" value="{{ r.remark }}">
+      </div>
+
+      <div style="margin:8px 0">
+        <div><label>照片（可选，选择即替换）</label></div>
+        <input name="photo" type="file" accept="image/*">
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button class="btn" type="submit">保存修改</button>
+        <button class="btn" type="button" onclick="closeDlg('dlg-{{ r.id }}')">取消</button>
+
+        <!-- 红色删除（安全版）：二次确认 -->
+        <button class="btn"
+                type="submit"
+                formaction="/products/{{ r.id }}/delete"
+                formmethod="post"
+                formnovalidate
+                onclick="return confirm('删除后将彻底消失，是否确认？');"
+                style="margin-left:auto;background:#E53935;border-color:#E53935;">
+          删除商品
+        </button>
+      </div>
+    </form>
+  </dialog>
+  {% endfor %}
+</table>
+{% endblock %}

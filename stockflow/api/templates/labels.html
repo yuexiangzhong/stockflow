@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>标签打印</h3>
+
+<form method="get" action="/labels" style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;">
+  <input name="q" value="{{ q or '' }}" placeholder="搜索 SKU / 品类 / 详情" style="min-width:260px">
+  <label><input type="checkbox" name="only_unprinted" value="1" {% if only_unprinted==1 %}checked{% endif %}> 仅未打印</label>
+  <button class="btn" type="submit">筛选</button>
+</form>
+
+<form id="print-form" method="get" action="/labels/print" style="margin-bottom:10px;">
+  <input type="hidden" name="ids" id="ids-field">
+
+  <!-- 版式（默认 3x3 cm） -->
+  <div style="display:flex;flex-wrap:wrap;gap:12px;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;">
+    <div>
+      <div>标签尺寸（mm）</div>
+      <input name="w" value="30.0" style="width:70px"> ×
+      <input name="h" value="30.0" style="width:70px">
+    </div>
+    <div>
+      <div>边距（mm）</div>
+      上 <input name="margin_top" value="10" style="width:60px">
+      下 <input name="margin_bottom" value="10" style="width:60px">
+      左 <input name="margin_left" value="10" style="width:60px">
+      右 <input name="margin_right" value="10" style="width:60px">
+    </div>
+    <div>
+      <div>间距（mm）</div>
+      横 <input name="gap_x" value="2" style="width:60px">
+      纵 <input name="gap_y" value="2" style="width:60px">
+    </div>
+    <div>
+      <div>起始位置</div>
+      行 <input name="start_row" value="1" style="width:60px">
+      列 <input name="start_col" value="1" style="width:60px">
+    </div>
+    <div>
+      <div>信息半字段（默认全选）</div>
+      <label><input type="checkbox" name="show_category" value="1" checked> 品类</label>
+      <label><input type="checkbox" name="show_detail" value="1" checked> 详情</label>
+      <label><input type="checkbox" name="show_weight" value="1" checked> 克重</label>
+    </div>
+    <div>
+      <div>字号策略</div>
+      <select name="font_mode">
+        <option value="auto" selected>自动</option>
+        <option value="large">大</option>
+        <option value="medium">中</option>
+        <option value="small">小</option>
+      </select>
+    </div>
+
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <button class="btn" type="button" id="btn-select-page">全选本页</button>
+      <button class="btn" type="button" id="btn-clear">清空选择</button>
+      <button class="btn" type="submit">生成打印页</button>
+    </div>
+  </div>
+</form>
+
+<table>
+  <tr>
+    <th><input type="checkbox" id="check-all"></th>
+    <th>SKU</th><th>品类</th><th>详情</th><th>克重</th><th>售价</th><th>登录日期</th><th>状态</th><th>已打印</th>
+  </tr>
+  {% for r in rows %}
+  <tr class="row" data-id="{{ r.id }}" style="{% if r.printed %}opacity:.6;{% endif %}">
+    <td><input type="checkbox" class="row-check"></td>
+    <td>{{ r.sku }}</td>
+    <td>{{ r.category or '' }}</td>
+    <td title="{{ r.detail }}">{{ (r.detail[:20] ~ '…') if r.detail and r.detail|length>20 else (r.detail or '') }}</td>
+    <td>{{ (r.spec ~ ' g') if r.spec else '' }}</td>
+    <td>{{ r.price_fmt }}</td>
+    <td>{{ r.login_date or '' }}</td>
+    <td>{{ r.status_display }}</td>
+    <td>{{ r.label_printed_count or 0 }}{% if r.label_printed_at %}（{{ r.label_printed_at }}）{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<script>
+  const rows = Array.from(document.querySelectorAll('tr.row'));
+  const checkAll = document.getElementById('check-all');
+  const idsField = document.getElementById('ids-field');
+  const btnSelectPage = document.getElementById('btn-select-page');
+  const btnClear = document.getElementById('btn-clear');
+  const formPrint = document.getElementById('print-form');
+
+  checkAll?.addEventListener('change', () => {
+    rows.forEach(r => r.querySelector('.row-check').checked = checkAll.checked);
+  });
+
+  btnSelectPage?.addEventListener('click', () => {
+    rows.forEach(r => r.querySelector('.row-check').checked = true);
+  });
+
+  btnClear?.addEventListener('click', () => {
+    rows.forEach(r => r.querySelector('.row-check').checked = false);
+    checkAll.checked = false;
+  });
+
+  formPrint?.addEventListener('submit', (e) => {
+    const ids = rows.filter(r => r.querySelector('.row-check').checked).map(r => r.dataset.id);
+    if (ids.length === 0) {
+      e.preventDefault();
+      alert('请先勾选要打印的商品。');
+      return;
+    }
+    idsField.value = ids.join(',');
+  });
+</script>
+{% endblock %}

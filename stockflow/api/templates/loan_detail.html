@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>借出单：{{ head.loan_no }}</h2>
+
+<div style="margin:8px 0;color:#555">
+  <div>借入公司：{{ head.company or '-' }}</div>
+  <div>接货负责人：{{ head.receiver or '-' }}</div>
+  <div>本公司经手人：{{ head.handler or '-' }}</div>
+  <div>折扣：{{ '%.2f' % head.discount }}</div>
+  <div>件数：{{ head.total_qty }}　折后总额：¥{{ '{:,}'.format(head.total_amount or 0) }}</div>
+  <div>状态：{{ head.status }}　创建时间：{{ head.created_at }}</div>
+</div>
+
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr>
+      <th style="border-bottom:1px solid #ddd;padding:6px">SKU</th>
+      <th style="border-bottom:1px solid #ddd;padding:6px">品类</th>
+      <th style="border-bottom:1px solid #ddd;padding:6px">详情</th>
+      <th style="border-bottom:1px solid #ddd;padding:6px;width:80px">缩略图</th>
+      <th style="border-bottom:1px solid #ddd;padding:6px;width:120px">售价</th>
+      <th style="border-bottom:1px solid #ddd;padding:6px;width:120px">折后价</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in items %}
+    <tr>
+      <td style="border-bottom:1px solid #eee;padding:6px">{{ r.sku }}</td>
+      <td style="border-bottom:1px solid #eee;padding:6px">{{ r.category or '' }}</td>
+      <td style="border-bottom:1px solid #eee;padding:6px">{{ r.detail or '' }}</td>
+      <td style="border-bottom:1px solid #eee;padding:6px">
+        {% if r.photo_url %}<img src="{{ r.photo_url }}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">{% endif %}
+      </td>
+      <td style="border-bottom:1px solid #eee;padding:6px">¥{{ '{:,}'.format(r.sale_price or 0) }}</td>
+      <td style="border-bottom:1px solid #eee;padding:6px">¥{{ '{:,}'.format(r.final_price or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

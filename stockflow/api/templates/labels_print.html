@@ -1,0 +1,271 @@
+{% set cols = grid.cols %}
+{% set rows_per_page = grid.rows %}
+{% set start_skip = (start.row - 1) * cols + (start.col - 1) %}
+{% set W = box.w %}{% set H = box.h %}
+{% set M = margin %}{% set G = gap %}
+{% set cw = 210 - M.left - M.right %}
+{% set ch = 297 - M.top - M.bottom %}
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>打印标签</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    @media print { .noprint { display: none !important; } }
+
+    body { margin: 0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",Arial,Helvetica,sans-serif; }
+
+    .sheet {
+      position: relative;
+      width: {{ 210 }}mm; height: {{ 297 }}mm;
+      padding: {{ M.top }}mm {{ M.right }}mm {{ M.bottom }}mm {{ M.left }}mm;
+      box-sizing: border-box;
+    }
+
+    .grid {
+      width: {{ cw }}mm; height: {{ ch }}mm;
+      display: grid;
+      grid-template-columns: repeat({{ cols }}, {{ W }}mm);
+      grid-auto-rows: {{ H }}mm;
+      gap: {{ G.y }}mm {{ G.x }}mm;
+    }
+
+    .cell {
+      width: {{ W }}mm; height: {{ H }}mm; box-sizing: border-box;
+      border: 0.2mm solid #000;        /* 调试可见，量产可注释 */
+      position: relative;
+      overflow: hidden;
+      padding: 1.5mm;
+    }
+
+    .half {
+      position: absolute; left:0; right:0; height: calc(50% - 1.0mm);
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 1mm; box-sizing: border-box;
+    }
+    .half.top { top: 0; transform: rotate(180deg); }
+    .half.bottom { bottom: 0; }
+
+    .fold-line {
+      position:absolute; left:1mm; right:1mm; top: calc(50% - 0.25mm);
+      height:0.5mm; border-top: 0.2mm dashed rgba(0,0,0,0.15);
+    }
+
+    /* 顶部信息半：可换行，不省略；字体由 JS 按“上半区高度”自动收敛 */
+    .info {
+      width: 100%;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center; text-align: center;
+      line-height: 1.2; overflow: hidden;
+      font-size: 8pt;                 /* 初始，JS 会按需要缩小 */
+    }
+    /* ✅ 保留 \n，允许换行；必要时自动换行 */
+    .info .line { white-space: pre-wrap; word-break: break-word; }
+
+    /* 下半：二维码 + 文本 */
+    .code { display:flex; width:100%; height:100%; align-items: stretch; gap: 1mm; }
+
+    /* 用 CSS 变量控制 QR 尺寸：默认占满半页高度；必要时 JS 可把它从 100% 向下调，但不小于 10mm */
+    .qrbox {
+      height: var(--qr-size, 100%);    /* JS 会在必要时改为 95%、90%… */
+      aspect-ratio: 1 / 1;
+      width: auto;
+      display:flex; align-items:center; justify-content:center;
+      flex: 0 0 auto;
+    }
+    .qrbox img, .qrbox svg {
+      display:block;
+      height: 100%; width: auto; max-width: 100%;
+    }
+
+    .code-text {
+      flex:1; display:flex; flex-direction:column; height:100%;
+      min-width: 0; line-height:1.2; overflow:hidden;
+    }
+
+    /* 金额：必须单行，JS 负责缩小直到放下 */
+    .price { font-weight: 700; white-space: nowrap; overflow: hidden; font-size: 10pt; }
+
+    /* SKU：可换行，JS 让它在剩余高度内缩小直到完整显示；细体更小 */
+    .sku { font-weight: 400; white-space: normal; word-break: break-word; overflow:hidden; font-size: 7pt; }
+
+    /* 可选：保持你的 font_mode 初始风格 */
+    {% if font_mode == 'small' %}
+      .info  { font-size: 7pt; }
+      .price { font-size: 9pt; }
+      .sku   { font-size: 6pt; }
+    {% elif font_mode == 'large' %}
+      .info  { font-size: 9pt; }
+      .price { font-size: 11pt; }
+      .sku   { font-size: 8pt; }
+    {% endif %}
+  </style>
+</head>
+<body>
+
+<div class="sheet">
+  <div class="grid">
+    {% for i in range(start_skip) %}<div class="cell"></div>{% endfor %}
+    {% for r in rows %}
+      <div class="cell">
+        <div class="half top">
+          <div class="info js-fit" data-min="6" data-max="12">
+            {% if fields.category == 1 and r.category %}<div class="line">{{ r.category }}</div>{% endif %}
+            {% if fields.detail == 1 and r.detail %}<div class="line">{{ r.detail }}</div>{% endif %}
+            {% if fields.weight == 1 and r.weight_fmt %}<div class="line">{{ r.weight_fmt }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="fold-line"></div>
+
+        <div class="half bottom">
+          <div class="code">
+            <div class="qrbox"><img src="/qr-svg/{{ r.sku }}.svg" alt="QR"></div>
+            <div class="code-text">
+              <div class="price js-fit-line" data-min="6" data-max="12">¥{{ r.price_fmt }}</div>
+              <div class="sku js-fit-block" data-min="5" data-max="9">{{ r.sku }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 屏幕专用操作条（打印不显示） -->
+<div class="noprint" style="position:fixed;left:12px;bottom:12px;background:rgba(255,255,255,.95);padding:10px 12px;border:1px solid #ddd;border-radius:8px;">
+  <form method="post" action="/labels/mark-printed" style="display:flex;gap:8px;align-items:center;">
+    <input type="hidden" name="ids" value="{{ ids }}">
+    <button class="btn" type="submit">我已打印完成 → 标记已打印</button>
+    <span style="color:#666">共 {{ rows|length }} 张；单位：<b>mm</b>（默认 {{ W }}×{{ H }}）。打印请选择“实际大小 / 100%”和“无边距”。</span>
+  </form>
+</div>
+
+<script>
+/* ==== 工具：mm↔px ==== */
+function pxPerMm() {
+  const d = document.createElement('div');
+  d.style.width = '10mm'; d.style.position='absolute'; d.style.left='-9999px';
+  document.body.appendChild(d);
+  const v = d.getBoundingClientRect().width / 10;
+  d.remove();
+  return v || 3.78; // Fallback
+}
+
+/* 将元素字体从 data-max 逐步下降到 data-min，直到完全放下（单行/多行自选） */
+function fitDown(el, {minPt=6, maxPt=12, step=0.25, singleLine=false, maxHeight=null} = {}) {
+  let pt = maxPt;
+  el.style.fontSize = pt + 'pt';
+  el.style.overflow = 'hidden';
+  if (singleLine) el.style.whiteSpace = 'nowrap';
+
+  const guardMax = 240;
+  let guard = 0;
+  while (guard++ < guardMax) {
+    // 容器尺寸
+    const cw = el.clientWidth;
+    const ch = maxHeight != null ? maxHeight : el.clientHeight;
+
+    const tooWide  = el.scrollWidth  > cw + 0.5;
+    const tooHigh  = el.scrollHeight > ch + 0.5;
+
+    if (!tooWide && !tooHigh) break;
+
+    pt -= step;
+    if (pt <= minPt) { pt = minPt; el.style.fontSize = pt + 'pt'; break; }
+    el.style.fontSize = pt + 'pt';
+  }
+}
+
+/* 针对单个标签的完整自适应流程 */
+function fitOneCell(cell){
+  // ✅ 用“上半区半页高度”来收敛顶部信息
+  const topHalf  = cell.querySelector('.half.top');
+  const info     = topHalf ? topHalf.querySelector('.info.js-fit') : null;
+
+  const bottom   = cell.querySelector('.half.bottom');
+  const qrbox    = bottom.querySelector('.qrbox');
+  const price    = bottom.querySelector('.price.js-fit-line');
+  const sku      = bottom.querySelector('.sku.js-fit-block');
+  const codeText = bottom.querySelector('.code-text');
+
+  // 1) 顶部信息块：在“半页高度”内缩小到完全显示（允许手动换行）
+  if (info && topHalf){
+    const maxH = topHalf.clientHeight;         // 上半区可用高度
+    info.style.maxHeight = maxH + 'px';        // 限制容器，避免撑破
+    fitDown(info, {
+      minPt: parseFloat(info.dataset.min || 6),
+      maxPt: parseFloat(info.dataset.max || 12),
+      step: 0.25,
+      singleLine: false,
+      maxHeight: maxH
+    });
+  }
+
+  // 2) 金额：必须单行；若再小也放不下，则把 QR 从 100% 高度往下缩（不小于 10mm）
+  if (price){
+    fitDown(price, { minPt: parseFloat(price.dataset.min || 6), maxPt: parseFloat(price.dataset.max || 12), singleLine: true, step: 0.25 });
+
+    const mm = pxPerMm();
+    const minQrPx = 10 * mm; // 不小于 10mm
+    const bottomH = bottom.clientHeight; // 半页可用高度（px）
+    let scale = 1.0;
+    const resetPrice = () => fitDown(price, { minPt: parseFloat(price.dataset.min || 6), maxPt: parseFloat(price.dataset.max || 12), singleLine: true, step: 0.25 });
+
+    // 如果金额仍溢出，逐步缩小 QR 高度到 95%、90%...（宽度保持正方形），为文本腾出宽度
+    let guard = 0;
+    while ((price.scrollWidth > price.clientWidth + 0.5) && guard++ < 20) {
+      const currentPx = scale * bottomH;
+      if (currentPx <= minQrPx + 0.5) break;  // 不能小于 10mm
+
+      scale -= 0.05; // 每次缩 5%
+      if (scale < 0.5) break; // 最多降到 50% 高度
+      qrbox.style.setProperty('--qr-size', Math.round(scale*100) + '%');
+
+      // 缩小 QR 后文本变宽，尝试把金额调回“尽可能大但单行”
+      resetPrice();
+    }
+  }
+
+  // 3) SKU：占用 code-text 剩余高度，缩小到完全显示
+  if (sku && codeText){
+    const remainH = codeText.clientHeight - (price ? price.getBoundingClientRect().height : 0);
+    fitDown(sku, {
+      minPt: parseFloat(sku.dataset.min || 5),
+      maxPt: parseFloat(sku.dataset.max || 9),
+      step: 0.25,
+      singleLine: false,
+      maxHeight: remainH
+    });
+  }
+}
+
+function fitAll(){
+  document.querySelectorAll('.cell').forEach(fitOneCell);
+}
+
+function afterFonts(cb){
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => setTimeout(cb, 30));
+  } else {
+    setTimeout(cb, 80);
+  }
+}
+
+window.addEventListener('load', () => {
+  afterFonts(fitAll);
+  // 再来一次，确保 SVG/图片加载后的尺寸变化被捕捉
+  setTimeout(fitAll, 150);
+});
+window.addEventListener('resize', fitAll);
+// 打印前收敛一次
+if (window.matchMedia) {
+  const mq = window.matchMedia('print');
+  mq.addEventListener?.('change', e => { if (e.matches) fitAll(); });
+}
+</script>
+
+</body>
+</html>

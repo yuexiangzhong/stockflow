@@ -1,0 +1,2 @@
+type,loan_no,company,receiver,handler,discount,total_qty,total_amount,skus,user
+loan_create,LN-2510-0001,某A公司,小A,B某人,0.8,3,78400,"['DTGJZS1028-2510-0002', 'DTGJZS1028-2510-0003', 'DTGJZS1028-2510-0001']",admin
