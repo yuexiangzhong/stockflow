@@ -260,4 +260,5 @@ def loan_detail_page(request: Request, loan_id: int, user=Depends(current_user))
             "head": head,              # ← 模板里用 head.*
             "items": items             # ← 模板里用 items 循环
         }
+
     )
