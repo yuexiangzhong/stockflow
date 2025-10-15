@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # api/routes_loans.py
 from __future__ import annotations
 from typing import List, Optional
@@ -89,7 +90,7 @@ def _alloc_loan_no(conn) -> str:
 # ====== 创建借出单（兼容两个路径） ======
 @router.post("/api/loans")
 @router.post("/api/loans/create")
-def create_loan(payload: LoanCreateIn, user = Depends(current_user)):
+def create_loan(payload: LoanCreateIn, user=Depends(current_user)):
     if not payload.items:
         raise HTTPException(http_status.HTTP_400_BAD_REQUEST, detail="明细为空")
     if not (payload.company or payload.receiver or payload.handler):
@@ -138,9 +139,9 @@ def create_loan(payload: LoanCreateIn, user = Depends(current_user)):
         # 本地时间（避免 SQLite 时区偏差）
         now_local = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         borrower_txt = "，".join([x for x in [
-            (f"借入公司：{payload.company.strip()}"  ) if payload.company  else "",
+            (f"借入公司：{payload.company.strip()}")   if payload.company  else "",
             (f"接货负责人：{payload.receiver.strip()}") if payload.receiver else "",
-            (f"本公司经手人：{payload.handler.strip()}")  if payload.handler  else "",
+            (f"本公司经手人：{payload.handler.strip()}") if payload.handler  else "",
             (f"折扣：{payload.discount:.2f}")
         ] if x])
 
@@ -238,7 +239,7 @@ def loan_detail_page(request: Request, loan_id: int, user=Depends(current_user))
     discount = float(head.get("discount") or 1)
 
     # 规范缩略图 URL，并算折后价（模板里用到 final_price）
-    def photo_url_from_path(path: str | None) -> str:
+    def photo_url_from_path(path: Optional[str]) -> str:
         if not path:
             return ""
         p = str(path).replace("\\", "/")
@@ -248,17 +249,16 @@ def loan_detail_page(request: Request, loan_id: int, user=Depends(current_user))
     items = []
     for r in rows:
         d = dict(r)
-        d["photo_url"]  = photo_url_from_path(d.get("photo_path"))
+        d["photo_url"] = photo_url_from_path(d.get("photo_path"))
         d["final_price"] = int(round((int(d.get("sale_price") or 0)) * discount))
         items.append(d)
 
     return request.app.templates.TemplateResponse(
-        "loan_detail.html",            # ← 和你现有模板名一致
+        "loan_detail.html",
         {
             "request": request,
             "user": user,
-            "head": head,              # ← 模板里用 head.*
-            "items": items             # ← 模板里用 items 循环
+            "head": head,
+            "items": items
         }
-
     )
